@@ -2,28 +2,21 @@ package main
 
 import (
 	"context"
-	"log"
 	"time"
 
-	"github.com/go-xorm/core"
-	"github.com/go-xorm/xorm"
-
+	"github.com/domano/kafka-jobs/db"
 	"github.com/domano/kafka-jobs/job"
+	"github.com/domano/kafka-jobs/work"
 
 	"github.com/segmentio/kafka-go"
 )
 
 func main() {
-	engine, err := xorm.NewEngine("sqlite3", "./test.db")
-	if err != nil {
-		log.Fatalf("Could not init xorm engine: %v", err)
-	}
-	engine.SetMapper(core.GonicMapper{})
-	engine.Sync2(new(job.Job))
+	db := db.NewSqliteEngine("./test.db", &job.Job{})
 
 	topic := "jobs"
 	go testWrite(topic)
-	go job.Add(engine, topic, "testgroup")
+	go work.Fetch(db, topic, "testgroup")
 
 	tick := time.Tick(time.Second)
 
@@ -31,13 +24,14 @@ func main() {
 		for {
 			select {
 			case <-tick:
-				job.Work(engine, job.InitialState, testWorker)
+				work.Work(db, work.InitialState, testWorker)
 			}
 		}
 	}()
 
 	select {}
 }
+
 func testWrite(topic string) {
 	// to produce messages
 	partition := 0
