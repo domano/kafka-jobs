@@ -3,26 +3,46 @@ package work
 import (
 	"context"
 
-	"github.com/domano/kafka-jobs/event"
 	"github.com/domano/kafka-jobs/job"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 const InitialState = "Initial"
 
-func Fetch(db DbConnector, topic, consumerGroup string) {
-	r := event.NewKafkaReader(topic, []string{"localhost:9092"},
-		event.WithConsumerGroup(consumerGroup),
-		event.WithMinBytes(10e3),
-		event.WithMaxBytes(10e6))
+type Fetcher struct {
+	db  DbConnector
+	ers []EventReader
+}
 
+type FetcherOption func(*Fetcher)
+
+func NewFetcher(db DbConnector, options ...FetcherOption) *Fetcher {
+	f := Fetcher{db: db}
+	for _, option := range options {
+		option(&f)
+	}
+	return &f
+}
+
+func WithEventReader(er EventReader) FetcherOption {
+	return func(f *Fetcher) {
+		f.ers = append(f.ers, er)
+	}
+}
+
+func (f *Fetcher) Fetch() {
+	for i := range f.ers {
+		go fetch(f.ers[i], f.db)
+	}
+}
+
+func fetch(er EventReader, db DbConnector) {
 	for {
-		e, err := r.ReadEvent(context.Background())
+		e, err := er.ReadEvent(context.Background())
 		if err != nil {
 			break
 		}
 		db.Insert(job.Job{Payload: string(e.Value), State: InitialState})
 	}
-
-	r.Close()
+	er.Close()
 }

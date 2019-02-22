@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/domano/kafka-jobs/db"
+	"github.com/domano/kafka-jobs/event"
 	"github.com/domano/kafka-jobs/job"
 	"github.com/domano/kafka-jobs/work"
 
@@ -12,11 +14,19 @@ import (
 )
 
 func main() {
-	db := db.NewSqliteEngine("./test.db", &job.Job{})
+	db := db.NewSqliteEngine("./test.db")
 
 	topic := "jobs"
+
+	r := event.NewKafkaReader(topic, []string{"localhost:9092"},
+		event.WithConsumerGroup("testgroup"),
+		event.WithMinBytes(10e3),
+		event.WithMaxBytes(10e6))
+
+	fetcher := work.NewFetcher(db, work.WithEventReader(&r))
+
 	go testWrite(topic)
-	go work.Fetch(db, topic, "testgroup")
+	fetcher.Fetch()
 
 	tick := time.Tick(time.Second)
 
@@ -33,28 +43,25 @@ func main() {
 }
 
 func testWrite(topic string) {
-	// to produce messages
-	partition := 0
+	for {
+		// to produce messages
+		partition := 0
 
-	conn, _ := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
+		conn, _ := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
 
-	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	conn.WriteMessages(
-		kafka.Message{Value: []byte("one!")},
-		kafka.Message{Value: []byte("two!")},
-		kafka.Message{Value: []byte("three!")},
-		kafka.Message{Value: []byte("one!")},
-		kafka.Message{Value: []byte("two!")},
-		kafka.Message{Value: []byte("three!")},
-		kafka.Message{Value: []byte("one!")},
-		kafka.Message{Value: []byte("two!")},
-		kafka.Message{Value: []byte("three!")},
-	)
+		p := make([]byte, rand.Int()%64)
+		rand.Read(p)
+		conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		conn.WriteMessages(
+			kafka.Message{Value: p},
+		)
 
-	conn.Close()
+		conn.Close()
+		<-time.After(1 * time.Second)
+	}
 }
 
 func testWorker(job job.Job) string {
-	<-time.After(10 * time.Second)
+	<-time.After(1 * time.Second)
 	return "Processed"
 }

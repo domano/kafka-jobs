@@ -1,6 +1,8 @@
 package job
 
-import "time"
+import (
+	"time"
+)
 
 type Job struct {
 	Id      int64

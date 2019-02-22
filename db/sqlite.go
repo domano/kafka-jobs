@@ -14,13 +14,13 @@ type SqliteConnector struct {
 	engine *xorm.Engine
 }
 
-func NewSqliteEngine(path string, beans ...interface{}) *SqliteConnector {
+func NewSqliteEngine(path string) *SqliteConnector {
 	engine, err := xorm.NewEngine("sqlite3", path)
 	if err != nil {
 		log.Fatalf("Could not init xorm engine: %v", err)
 	}
 	engine.SetMapper(core.GonicMapper{})
-	engine.Sync2(beans)
+	engine.Sync2(&job.Job{})
 
 	return &SqliteConnector{engine}
 }

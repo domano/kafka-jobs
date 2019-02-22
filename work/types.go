@@ -2,6 +2,7 @@ package work
 
 import (
 	"context"
+	"io"
 
 	"github.com/domano/kafka-jobs/event"
 
@@ -10,7 +11,7 @@ import (
 
 type EventReader interface {
 	ReadEvent(context.Context) (event.Event, error)
-	Close() error
+	io.Closer
 }
 
 type DbConnector interface {

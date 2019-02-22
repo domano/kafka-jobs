@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO: Optimistic locking does not work!
 func Work(db DbConnector, state string, worker Worker) error {
 	jobs, err := db.Find(state)
 	if err != nil {
